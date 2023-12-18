@@ -119,7 +119,7 @@ class Restaurant:
         db.cursor.execute('SELECT * FROM Restaurant WHERE id = ?', (id,))
         row = db.cursor.fetchone()
         if row:
-            restaurant = cls(row)
+            restaurant = cls(row[0])
             restaurant.id = row[0]
             return restaurant
         else:
@@ -179,6 +179,6 @@ found_customer = Customer.find_by_name(db, "John Doe")
 print(f"Found Customer: {found_customer.full_name()}")
 
 # Finding all customers by given name
-customers_with_given_name = Customer.find_all_by_given_name(db, name="John")
+customers_with_given_name = Customer.find_all_by_given_name(db, "John")
 for customer in customers_with_given_name:
     print(customer.full_name())
