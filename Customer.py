@@ -14,7 +14,7 @@ class Customer:
         return self.last_name
 
     def full_name(self):
-        return f"{self.first_name} {self.last_name}"
+        return f"{self.last_name} {self.first_name}"
 
     @classmethod
     def all(cls):
