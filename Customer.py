@@ -1,47 +1,11 @@
-import sqlite3
-
-class Database:
-    def __init__(self):
-        self.conn = sqlite3.connect(':memory:')
-        self.cursor = self.conn.cursor()
-
-        # Create Customer table
-        self.cursor.execute('''
-            CREATE TABLE IF NOT EXISTS Customer (
-                id INTEGER PRIMARY KEY,
-                first_name TEXT,
-                last_name TEXT
-            )
-        ''')
-
-        # Create Restaurant table
-        self.cursor.execute('''
-            CREATE TABLE IF NOT EXISTS Restaurant (
-                id INTEGER PRIMARY KEY,
-                name TEXT
-            )
-        ''')
-
-        # Create Review table
-        self.cursor.execute('''
-            CREATE TABLE IF NOT EXISTS Review (
-                id INTEGER PRIMARY KEY,
-                customer_id INTEGER,
-                restaurant_id INTEGER,
-                rating INTEGER,
-                FOREIGN KEY (customer_id) REFERENCES Customer (id),
-                FOREIGN KEY (restaurant_id) REFERENCES Restaurant (id)
-            )
-        ''')
-
-    def commit(self):
-        self.conn.commit()
-
 class Customer:
+    customers = []
+
     def __init__(self, first_name, last_name):
         self.first_name = first_name
         self.last_name = last_name
-        self.id = None  # Will be set when saved to the database
+        self.id = len(Customer.customers) + 1
+        Customer.customers.append(self)
 
     def given_name(self):
         return self.first_name
@@ -52,133 +16,110 @@ class Customer:
     def full_name(self):
         return f"{self.first_name} {self.last_name}"
 
-    def save(self, db):
-        db.cursor.execute('''
-            INSERT INTO Customer (first_name, last_name)
-            VALUES (?, ?)
-        ''', (self.first_name, self.last_name))
-        self.id = db.cursor.lastrowid
+    @classmethod
+    def all(cls):
+        return cls.customers
+
+    def num_reviews(self):
+        return len([review for review in Review.all() if review.customer == self])
 
     @classmethod
-    def find_by_name(cls, db, full_name):
-        db.cursor.execute('''
-            SELECT * FROM Customer
-            WHERE first_name || ' ' || last_name = ?
-        ''', (full_name,))
-        row = db.cursor.fetchone()
-        if row:
-            customer = cls(row[1], row[2])
-            customer.id = row[0]
-            return customer
+    def find_by_name(cls, name):
+        for customer in cls.customers:
+            if customer.full_name() == name:
+                return customer
         return None
 
     @classmethod
-    def find_all_by_given_name(cls, db, given_name):
-        db.cursor.execute('''
-            SELECT * FROM Customer
-            WHERE first_name = ?
-        ''', (given_name,))
-        rows = db.cursor.fetchall()
-        customers = []
-        for row in rows:
-            customer = cls(row[1], row[2])
-            customer.id = row[0]
-            customers.append(customer)
-        return customers
-    @classmethod
-    def find_by_id(cls, db, id):
-        db.cursor.execute('SELECT * FROM Customer WHERE id = ?', (id,))
-        row = db.cursor.fetchone()
-        if row:
-            customer = cls(row[1], row[2])
-        customer.id = row[0]
-        return customer
-       
+    def find_all_by_given_name(cls, given_name):
+        return [customer for customer in cls.customers if customer.given_name() == given_name]
+
+    def restaurants(self):
+        return list(set([review.restaurant for review in Review.all() if review.customer == self]))
+
+    def add_review(self, restaurant, rating):
+        review = Review(self, restaurant, rating)
+        return review
+
 
 class Restaurant:
+    restaurants = []
+
     def __init__(self, name):
         self.name = name
-        self.id = None  # Will be set when saved to the database
+        self.id = len(Restaurant.restaurants) + 1
+        Restaurant.restaurants.append(self)
 
-    def save(self, db):
-        db.cursor.execute('''
-            INSERT INTO Restaurant (name)
-            VALUES (?)
-        ''', (self.name,))
-        self.id = db.cursor.lastrowid
+    def name(self):
+        return self.name
 
-    def average_star_rating(self, db):
-        db.cursor.execute('''
-            SELECT AVG(rating) FROM Review
-            WHERE restaurant_id = ?
-        ''', (self.id,))
-        result = db.cursor.fetchone()[0]
-        return result if result else 0
-    @classmethod
-    def find_by_id(cls, db, id):
-        db.cursor.execute('SELECT * FROM Restaurant WHERE id = ?', (id,))
-        row = db.cursor.fetchone()
-        if row:
-            restaurant = cls(row[0])
-            restaurant.id = row[0]
-            return restaurant
-        else:
-            return None
+    def reviews(self):
+        return [review for review in Review.all() if review.restaurant == self]
+
+    def customers(self):
+        return list(set([review.customer for review in self.reviews()]))
+
+    def average_star_rating(self):
+        ratings = [review.rating for review in self.reviews()]
+        return sum(ratings) / len(ratings) if ratings else 0
+
 
 class Review:
+    reviews = []
+
     def __init__(self, customer, restaurant, rating):
         self.customer = customer
         self.restaurant = restaurant
         self.rating = rating
-        self.id = None  # Will be set when saved to the database
-
-    def save(self, db):
-        db.cursor.execute('''
-            INSERT INTO Review (customer_id, restaurant_id, rating)
-            VALUES (?, ?, ?)
-        ''', (self.customer.id, self.restaurant.id, self.rating))
-        self.id = db.cursor.lastrowid
+        self.id = len(Review.reviews) + 1
+        Review.reviews.append(self)
 
     @classmethod
-    def all(cls, db):
-        db.cursor.execute('SELECT * FROM Review')
-        rows = db.cursor.fetchall()
-        reviews = []
-        for row in rows:
-            customer = Customer.find_by_id(db, row[1])
-            restaurant = Restaurant.find_by_id(db, row[2])
-            review = cls(customer, restaurant, row[3])
-            review.id = row[0]
-            reviews.append(review)
-        return reviews
+    def all(cls):
+        return cls.reviews
+
+    def rating(self):
+        return self.rating
+
+    def customer(self):
+        return self.customer
+
+    def restaurant(self):
+        return self.restaurant
+
 
 # Usage example
-db = Database()
 
-# Creating instances
+# Create instances
 customer1 = Customer("John", "Doe")
-restaurant1 = Restaurant("Good Eats")
+customer2 = Customer("Alice", "Smith")
+restaurant1 = Restaurant("Tasty Bites")
+restaurant2 = Restaurant("Sizzling Grill")
+
+# Add reviews
 review1 = Review(customer1, restaurant1, 4)
+review2 = Review(customer2, restaurant1, 5)
+review3 = Review(customer1, restaurant2, 3)
 
-# Saving instances to the database
-customer1.save(db)
-restaurant1.save(db)
-review1.save(db)
+# Print customer information
+print("\nCustomers in the database:")
+for customer in Customer.all():
+    print(f"Customer ID: {customer.id}, Name: {customer.full_name()}, Number of Reviews: {customer.num_reviews()}")
 
-# Retrieving all reviews from the database
-all_reviews = Review.all(db)
-for review in all_reviews:
+# Print restaurant information
+print("\nRestaurants in the database:")
+for restaurant in Restaurant.restaurants:
+    print(f"Restaurant ID: {restaurant.id}, Name: {restaurant.name}, Average Star Rating: {restaurant.average_star_rating()}")
+
+# Print review information
+print("\nReviews in the database:")
+for review in Review.all():
     print(f"Review ID: {review.id}, Customer: {review.customer.full_name()}, Restaurant: {review.restaurant.name}, Rating: {review.rating}")
 
-# Retrieving average star rating for a restaurant
-average_rating = restaurant1.average_star_rating(db)
-print(f"Average Star Rating for {restaurant1.name}: {average_rating}")
+# Add a new review
+customer1.add_review(restaurant2, 5)
 
-# Finding a customer by name
-found_customer = Customer.find_by_name(db, "John Doe")
-print(f"Found Customer: {found_customer.full_name()}")
-
-# Finding all customers by given name
-customers_with_given_name = Customer.find_all_by_given_name(db, "John")
-for customer in customers_with_given_name:
-    print(customer.full_name())
+# Print updated review information
+print("\nReviews in the database after adding a new review:")
+for review in Review.all():
+    print(f"Review ID: {review.id}, Customer: {review.customer.full_name()}, Restaurant: {review.restaurant.name}, Rating: {review.rating}")
